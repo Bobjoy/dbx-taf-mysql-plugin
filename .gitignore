@@ -1,0 +1,14 @@
+# 构建产物
+bin/
+dist/
+.pack-stage/
+.dbx-dev/
+
+# 一次性验证代码（含内部协议原始 IDL 与真实环境信息，不入库）
+spike/
+
+# npm
+node_modules/
+
+# 杂项
+.DS_Store

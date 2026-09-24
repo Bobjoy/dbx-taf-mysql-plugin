@@ -1,0 +1,46 @@
+# github.com/TarsCloud/TarsGo v1.4.6
+## explicit; go 1.14
+github.com/TarsCloud/TarsGo/tars
+github.com/TarsCloud/TarsGo/tars/model
+github.com/TarsCloud/TarsGo/tars/protocol
+github.com/TarsCloud/TarsGo/tars/protocol/codec
+github.com/TarsCloud/TarsGo/tars/protocol/res/adminf
+github.com/TarsCloud/TarsGo/tars/protocol/res/basef
+github.com/TarsCloud/TarsGo/tars/protocol/res/configf
+github.com/TarsCloud/TarsGo/tars/protocol/res/endpointf
+github.com/TarsCloud/TarsGo/tars/protocol/res/logf
+github.com/TarsCloud/TarsGo/tars/protocol/res/nodef
+github.com/TarsCloud/TarsGo/tars/protocol/res/notifyf
+github.com/TarsCloud/TarsGo/tars/protocol/res/propertyf
+github.com/TarsCloud/TarsGo/tars/protocol/res/queryf
+github.com/TarsCloud/TarsGo/tars/protocol/res/requestf
+github.com/TarsCloud/TarsGo/tars/protocol/res/statf
+github.com/TarsCloud/TarsGo/tars/protocol/tup
+github.com/TarsCloud/TarsGo/tars/registry
+github.com/TarsCloud/TarsGo/tars/registry/tars
+github.com/TarsCloud/TarsGo/tars/selector
+github.com/TarsCloud/TarsGo/tars/selector/consistenthash
+github.com/TarsCloud/TarsGo/tars/selector/modhash
+github.com/TarsCloud/TarsGo/tars/selector/roundrobin
+github.com/TarsCloud/TarsGo/tars/transport
+github.com/TarsCloud/TarsGo/tars/util/conf
+github.com/TarsCloud/TarsGo/tars/util/current
+github.com/TarsCloud/TarsGo/tars/util/debug
+github.com/TarsCloud/TarsGo/tars/util/endpoint
+github.com/TarsCloud/TarsGo/tars/util/gpool
+github.com/TarsCloud/TarsGo/tars/util/grace
+github.com/TarsCloud/TarsGo/tars/util/gtime
+github.com/TarsCloud/TarsGo/tars/util/rogger
+github.com/TarsCloud/TarsGo/tars/util/rtimer
+github.com/TarsCloud/TarsGo/tars/util/ssl
+github.com/TarsCloud/TarsGo/tars/util/sync
+github.com/TarsCloud/TarsGo/tars/util/tools
+github.com/TarsCloud/TarsGo/tars/util/trace
+# github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk v0.0.0-20260923085812-47e7f56b1447
+## explicit; go 1.22
+github.com/t8y2/dbx/plugins/sdk/go/dbx-plugin-sdk
+# go.uber.org/automaxprocs v1.5.2
+## explicit; go 1.18
+go.uber.org/automaxprocs/internal/cgroups
+go.uber.org/automaxprocs/internal/runtime
+go.uber.org/automaxprocs/maxprocs

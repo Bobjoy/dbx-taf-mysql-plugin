@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TAF MySQL</title>
+    <style>
+      :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 16px; background: Canvas; color: CanvasText; height: 100vh; display: flex; flex-direction: column; }
+      header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex: 0 0 auto; }
+      h1 { margin: 0; font-size: 16px; }
+      #conn { font-size: 12px; opacity: .6; }
+      #layout { display: flex; gap: 0; align-items: stretch; flex: 1 1 auto; min-height: 0; }
+      #tree { flex: 0 0 230px; min-width: 140px; max-width: 60vw; overflow: auto; white-space: nowrap; padding: 6px; border: 1px solid color-mix(in srgb, CanvasText 14%, transparent); border-radius: 10px; font-size: 12.5px; }
+      #resizer { flex: 0 0 7px; align-self: stretch; cursor: col-resize; background: transparent; }
+      #resizer:hover, #resizer.dragging { background: color-mix(in srgb, #6d5dfc 40%, transparent); }
+      #main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+      #main > * { flex: 0 0 auto; }
+      #tree-head { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; opacity: .65; padding: 0 4px 4px; }
+      #tree-head button { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; }
+      .node { user-select: none; }
+      .row { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+      .row:hover { background: color-mix(in srgb, CanvasText 8%, transparent); }
+      .row .tw { flex: 0 0 12px; font-size: 9px; opacity: .6; text-align: center; }
+      .row .nm { white-space: nowrap; }
+      .cat > .row { font-weight: 650; }
+      .leaf { padding-left: 20px; }
+      .leaf .dt { opacity: .55; font-size: 11px; margin-left: 6px; }
+      .children { margin-left: 10px; padding-left: 7px; border-left: 1px solid color-mix(in srgb, CanvasText 14%, transparent); }
+      .loading { padding: 2px 8px; opacity: .5; font-style: italic; }
+      .row.active { background: color-mix(in srgb, #6d5dfc 18%, transparent); }
+      .row svg { flex: 0 0 auto; opacity: .75; }
+      #editor { border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: 10px; background: color-mix(in srgb, CanvasText 4%, transparent); overflow: hidden; min-height: 180px; }
+      #editor .cm-editor { min-height: 180px; max-height: 40vh; }
+      /* 补全弹层挂在 body 上；CM6 自带 light/dark 主题规则特异性更高，用 body 前缀压过它 */
+      body .cm-tooltip.cm-tooltip { background: Canvas; color: CanvasText; border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 8px; }
+      body .cm-tooltip.cm-tooltip-autocomplete > ul { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; list-style: none; margin: 0; padding: 4px 0; max-height: 220px; overflow: hidden; background: transparent; color: inherit; }
+      body .cm-tooltip.cm-tooltip-autocomplete > ul > li { background: transparent; color: CanvasText; padding: 2px 10px; }
+      body .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] { background: #6d5dfc; color: white; }
+      body .cm-tooltip .cm-completionDetail { color: color-mix(in srgb, CanvasText 55%, transparent); opacity: 1; }
+      body .cm-tooltip .cm-completionIcon { opacity: .8; }
+      .bar { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+      button.run { border: 0; border-radius: 10px; padding: 8px 18px; background: #6d5dfc; color: white; font: inherit; font-weight: 650; cursor: pointer; }
+      button.run:disabled { opacity: .55; cursor: wait; }
+      #status { font-size: 12px; opacity: .75; }
+      #error { display: none; margin: 10px 0; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, #e5484d 14%, Canvas); color: #e5484d; font-size: 13px; white-space: pre-wrap; }
+      #grid-wrap { overflow: auto; flex: 1 1 auto; min-height: 160px; border: 1px solid color-mix(in srgb, CanvasText 14%, transparent); border-radius: 10px; contain: paint; will-change: scroll-position; }
+      /* separate + 不透明描边：半透明色和 collapse 会让横向滚动每帧重混合，是卡顿主因；也修 sticky 表头不跟随边框的问题 */
+      table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 12.5px; }
+      th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, Canvas); white-space: nowrap; max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+      th { position: sticky; top: 0; background: color-mix(in srgb, CanvasText 7%, Canvas); }
+      td.null { color: color-mix(in srgb, CanvasText 45%, Canvas); font-style: italic; }
+      .hint { margin-top: 10px; font-size: 12px; opacity: .55; flex: 0 0 auto; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>TAF MySQL</h1>
+      <span id="conn"></span>
+    </header>
+    <div id="layout">
+      <nav id="tree">
+        <div id="tree-head"><span>对象</span><button id="refresh" type="button">刷新</button></div>
+        <div id="tree-body"></div>
+      </nav>
+      <div id="resizer" title="拖动调整树宽度"></div>
+      <div id="main">
+        <div id="editor"></div>
+        <div class="bar">
+          <button class="run" id="run" type="button">执行 (⌘/Ctrl+Enter)</button>
+          <span id="status"></span>
+        </div>
+        <div id="error"></div>
+        <div id="grid-wrap"><table id="grid"></table></div>
+      </div>
+    </div>
+    <p class="hint">左键单击表/视图名插入编辑器，双击预览前 100 行；跨库查询用全限定表名 <code>&lt;库&gt;.&lt;表&gt;</code>。</p>
+    <script src="vendor/editor.js"></script>
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const runBtn = $("#run"), statusEl = $("#status"), errorEl = $("#error"), grid = $("#grid");
+      const treeBody = $("#tree-body");
+      const connectionId = () => window.dbxPlugin.context?.connectionId;
+
+      function showError(message) {
+        errorEl.textContent = message;
+        errorEl.style.display = "block";
+      }
+
+      // 超长值先截断再进 DOM：nowrap 下整段长文本的排版成本是滚动卡顿主因
+      // UTC 字面量按本机时区（+8）换算成 YYYY-MM-DD HH:mm:ss 展示
+      const ISO_DT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/;
+      function cellText(cell) {
+        let s = typeof cell === "object" && cell !== null ? JSON.stringify(cell) : String(cell);
+        if (ISO_DT.test(s)) {
+          const d = new Date(s);
+          if (!Number.isNaN(d.getTime())) {
+            const p = (n) => String(n).padStart(2, "0");
+            s = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+          }
+        }
+        return s.length > 300 ? s.slice(0, 300) + "…" : s;
+      }
+
+      function render(out) {
+        errorEl.style.display = "none";
+        grid.replaceChildren();
+        const head = grid.createTHead();
+        const headRow = head.insertRow();
+        for (const column of out.columns || []) {
+          const th = document.createElement("th");
+          th.textContent = column;
+          headRow.appendChild(th);
+        }
+        const body = grid.createTBody();
+        for (const row of out.rows || []) {
+          const tr = body.insertRow();
+          for (const cell of row) {
+            const td = tr.insertCell();
+            if (cell === null || cell === undefined) {
+              td.textContent = "NULL";
+              td.className = "null";
+            } else {
+              td.textContent = cellText(cell);
+            }
+          }
+        }
+        const parts = [];
+        if (out.total !== undefined) parts.push(`${(out.rows || []).length} / ${out.total} 行${out.truncated ? "（已截断，加 LIMIT 或缩小范围）" : ""}`);
+        if (out.elapsedMs !== undefined) parts.push(`${out.elapsedMs} ms`);
+        if (out.note) parts.push(out.note);
+        statusEl.textContent = parts.join(" ｜ ");
+      }
+
+      async function run() {
+        const sql = editorApi.value.trim();
+        if (!sql) return;
+        runBtn.disabled = true;
+        statusEl.textContent = "执行中…";
+        try {
+          render(await window.dbxPlugin.invoke("taf-mysql/query", { connectionId: connectionId(), sql }));
+        } catch (error) {
+          statusEl.textContent = "";
+          showError(error.message);
+        } finally {
+          runBtn.disabled = false;
+        }
+      }
+
+      function insertText(text) {
+        editorApi.insertAtCursor(text);
+      }
+
+      async function fetchMeta(kind, table) {
+        return await window.dbxPlugin.invoke("taf-mysql/meta", { connectionId: connectionId(), kind, table });
+      }
+
+      const KEYWORDS = [
+        "select", "from", "where", "group by", "order by", "having", "limit", "offset",
+        "join", "left join", "right join", "inner join", "on", "as", "and", "or", "not",
+        "in", "is null", "is not null", "like", "between", "exists", "case", "when", "then", "else", "end",
+        "insert into", "values", "update", "set", "delete from", "distinct", "union all", "union",
+        "count", "sum", "avg", "min", "max", "cast", "asc", "desc", "database()",
+      ];
+      let tablesCache = null;
+      const colsCache = new Map();
+
+      async function ensureTables() {
+        if (!tablesCache) {
+          const [tables, views] = await Promise.all([fetchMeta("tables"), fetchMeta("views")]);
+          tablesCache = [...tables, ...views].map((n) => n.name);
+        }
+        return tablesCache;
+      }
+
+      async function completeSql(prefix, before) {
+        const p = prefix.toLowerCase();
+        const starts = (s) => s.toLowerCase().startsWith(p);
+        if (/\b(?:from|join|update|into)\s+[`"]?\w*$/i.test(before)) {
+          const names = await ensureTables();
+          return names.filter(starts).slice(0, 80).map((n) => ({ label: n, type: "class", detail: "表" }));
+        }
+        const items = KEYWORDS.filter(starts).map((k) => ({ label: k.toUpperCase(), type: "keyword" }));
+        const refs = [...before.matchAll(/\b(?:from|join|update|into)\s+`?(\w+)/gi)].map((m) => m[1].toLowerCase());
+        for (const ref of new Set(refs)) {
+          if (!colsCache.has(ref)) {
+            const hit = (await ensureTables()).find((n) => n.toLowerCase() === ref);
+            colsCache.set(ref, hit ? await fetchMeta("columns", hit) : []);
+          }
+          for (const c of colsCache.get(ref)) {
+            if (c.name.toLowerCase().startsWith(p)) items.push({ label: c.name, type: "property", detail: c.detail });
+          }
+        }
+        return items.slice(0, 150);
+      }
+
+      const editorApi = TafEditor.createEditor($("#editor"), { onRun: () => run(), onComplete: completeSql });
+
+      const ICONS = {
+        table: '<svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.2" y="2" width="9.6" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M1.2 4.8h9.6M5 4.8v5.2" stroke="currentColor" stroke-width="1"/></svg>',
+        view: '<svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.2" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M1.8 6h8.4M6 1.8c1.6 2.6 1.6 5.6 0 8.4M6 1.8c-1.6 2.6-1.6 5.6 0 8.4" stroke="currentColor" stroke-width=".9" fill="none"/></svg>',
+        column: '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 3h8M2 6h8M2 9h5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+        index: '<svg width="12" height="12" viewBox="0 0 12 12"><circle cx="4" cy="4" r="2.3" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M5.8 5.8 10.5 10.5M8 8l1.6-1.6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>',
+      };
+      function addIcon(row, name) {
+        if (!ICONS[name]) return;
+        const wrap = document.createElement("span");
+        wrap.innerHTML = ICONS[name];
+        row.insertBefore(wrap.firstChild, row.children[1] || null);
+      }
+
+      function setActive(row) {
+        document.querySelectorAll("#tree-body .row.active").forEach((el) => el.classList.remove("active"));
+        row.classList.add("active");
+      }
+
+      function makeRow(indentTw) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const tw = document.createElement("span");
+        tw.className = "tw";
+        tw.textContent = indentTw;
+        const nm = document.createElement("span");
+        nm.className = "nm";
+        row.append(tw, nm);
+        return { row, tw, nm };
+      }
+
+      // 可展开节点：label 标题，loader 返回子节点数组（懒加载一次）
+      function expandable(parent, label, loader, childRender, iconName) {
+        const node = document.createElement("div");
+        node.className = "node";
+        const { row, tw, nm } = makeRow("▸");
+        nm.textContent = label;
+        if (iconName) addIcon(row, iconName);
+        const kids = document.createElement("div");
+        kids.className = "children";
+        kids.style.display = "none";
+        let loaded = false;
+        let open = false;
+        row.addEventListener("click", async () => {
+          open = !open;
+          tw.textContent = open ? "▾" : "▸";
+          kids.style.display = open ? "" : "none";
+          if (open && !loaded) {
+            loaded = true;
+            kids.replaceChildren(Object.assign(document.createElement("div"), { className: "loading", textContent: "加载中…" }));
+            try {
+              childRender(kids, await loader());
+            } catch (error) {
+              loaded = false;
+              kids.replaceChildren(Object.assign(document.createElement("div"), { className: "loading", textContent: error.message }));
+            }
+          }
+        });
+        node.append(row, kids);
+        parent.appendChild(node);
+        return kids;
+      }
+
+      function leafRow(parent, name, detail, iconName) {
+        const row = document.createElement("div");
+        row.className = "row leaf";
+        const nm = document.createElement("span");
+        nm.className = "nm";
+        nm.textContent = name;
+        row.appendChild(nm);
+        if (iconName) addIcon(row, iconName);
+        if (detail) {
+          const dt = document.createElement("span");
+          dt.className = "dt";
+          dt.textContent = detail;
+          row.appendChild(dt);
+        }
+        row.addEventListener("click", () => { setActive(row); insertText(name); });
+        parent.appendChild(row);
+        return row;
+      }
+
+      function objectRow(parent, name, isTable) {
+        const kids = document.createElement("div");
+        kids.className = "children";
+        kids.style.display = "none";
+        const node = document.createElement("div");
+        node.className = "node";
+        const { row, tw, nm } = makeRow("▸");
+        nm.textContent = name;
+        addIcon(row, isTable ? "table" : "view");
+        let loaded = false;
+        let clickTimer = null;
+        row.addEventListener("click", () => {
+          setActive(row);
+          if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; return; }
+          clickTimer = setTimeout(() => { clickTimer = null; insertText(name); }, 220);
+        });
+        row.addEventListener("dblclick", () => {
+          if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+          editorApi.value = `select * from \`${name}\` limit 100`;
+          run();
+        });
+        // 展开箭头单独处理
+        tw.addEventListener("click", async (event) => {
+          event.stopPropagation();
+          const open = kids.style.display !== "none";
+          kids.style.display = open ? "none" : "";
+          tw.textContent = open ? "▸" : "▾";
+          if (!open && !loaded) {
+            loaded = true;
+            kids.replaceChildren(Object.assign(document.createElement("div"), { className: "loading", textContent: "加载中…" }));
+            const box = document.createElement("div");
+            tableLike(box, name, isTable);
+            kids.replaceChildren(box);
+          }
+        });
+        node.append(row, kids);
+        parent.appendChild(node);
+      }
+
+      function tableLike(box, name, isTable) {
+        if (isTable) {
+          expandable(box, "字段", () => fetchMeta("columns", name), (b, n) => renderNodes(b, n, "column"), "column");
+          expandable(box, "索引", () => fetchMeta("indexes", name), (b, n) => renderNodes(b, n, "index"), "index");
+        } else {
+          expandable(box, "字段", () => fetchMeta("columns", name), (b, n) => renderNodes(b, n, "column"), "column");
+        }
+      }
+
+      function renderNodes(box, nodes, iconName) {
+        box.replaceChildren();
+        for (const n of nodes) leafRow(box, n.name, n.detail, iconName);
+        if (!nodes.length) leafRow(box, "（无）", "");
+      }
+
+      function buildTree() {
+        treeBody.replaceChildren();
+        expandable(treeBody, "表", () => fetchMeta("tables"), (box, nodes) => {
+          box.replaceChildren();
+          for (const n of nodes) objectRow(box, n.name, true);
+          if (!nodes.length) leafRow(box, "（无）", "");
+        }, "table");
+        expandable(treeBody, "视图", () => fetchMeta("views"), (box, nodes) => {
+          box.replaceChildren();
+          for (const n of nodes) objectRow(box, n.name, false);
+          if (!nodes.length) leafRow(box, "（无）", "");
+        }, "view");
+      }
+
+      $("#refresh").addEventListener("click", buildTree);
+
+      const resizer = $("#resizer"), treeEl = $("#tree");
+      resizer.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        resizer.classList.add("dragging");
+        const left = treeEl.getBoundingClientRect().left;
+        const move = (moveEvent) => {
+          const width = Math.min(Math.max(moveEvent.clientX - left, 140), window.innerWidth * 0.6);
+          treeEl.style.flexBasis = width + "px";
+        };
+        const up = () => {
+          resizer.classList.remove("dragging");
+          window.removeEventListener("mousemove", move);
+          window.removeEventListener("mouseup", up);
+        };
+        window.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", up);
+      });
+
+      runBtn.addEventListener("click", run);
+
+      window.dbxPlugin.ready.then(() => {
+        statusEl.textContent = "就绪";
+        buildTree();
+      });
+    </script>
+  </body>
+</html>
