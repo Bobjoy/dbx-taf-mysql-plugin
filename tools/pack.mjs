@@ -14,10 +14,11 @@ if (!/^(darwin|linux|win32)-(x64|arm64)$/.test(target ?? "")) {
   console.error("usage: node tools/pack.mjs <darwin|linux|win32>-<x64|arm64>");
   process.exit(2);
 }
-const [goos, targetArch] = target.split("-");
+const [targetOs, targetArch] = target.split("-");
+const goos = targetOs === "win32" ? "windows" : targetOs; // dbx 的 win32 == Go 的 windows
 const goarch = targetArch === "x64" ? "amd64" : targetArch;
 const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
-const binaryName = "dbx-plugin-taf-mysql" + (goos === "win32" ? ".exe" : "");
+const binaryName = "dbx-plugin-taf-mysql" + (targetOs === "win32" ? ".exe" : "");
 
 const stage = join(root, ".pack-stage");
 rmSync(stage, { recursive: true, force: true });
