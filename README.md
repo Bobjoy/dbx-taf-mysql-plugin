@@ -21,6 +21,17 @@ cd editor && npm install && node build.mjs
 TARS 网关与 TAF 网关的包字段 tag 布局不同，`tafprotocol.go` 以 tarsgo 的 `model.Protocol`
 注入 TAF BasePacket 布局，字节级与 TAF 官方客户端一致。
 
+## 多平台发布（GitHub Actions）
+
+`.github/workflows/release.yml` 两个 job：
+
+- `build`：matrix 并行（darwin-x64 / darwin-arm64 / linux-x64，均在 ubuntu runner 上交叉编译），
+  跑单测后 `tools/pack.mjs <target>` 产出 `.dbxp` 并上传 artifact；
+- `release`：汇总全部 artifact，一次性发布——main 分支每次推送更新 `nightly`（prerelease），
+  推 `v*` tag 则出对应正式版并附自动生成的 release notes。
+
+产物命名 `com.bao.taf-mysql-<版本>-<target>.dbxp`；加新平台只需扩 matrix（pack.mjs 已支持 win32）。
+
 ## 本地联调
 
 ```bash
