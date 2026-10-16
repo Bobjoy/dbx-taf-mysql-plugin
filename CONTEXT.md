@@ -15,7 +15,7 @@ dbx 插件：在 dbx 里以自建连接类型查询 TAF 环境的 MySQL（经 Tg
 | **tafgo** | TAF 官方 Go SDK（公司内网 gitlab，路径 tafgo/taf）。曾用作 Sidecar 依赖，现已被开源 tarsgo 替代（见 ADR-0005），仅其 **BasePacket 线协议布局**仍是 `ETG/tafprotocol.go` 的对齐目标。 |
 | **tarsgo** | 开源 TARS Go SDK（github.com/TarsCloud/TarsGo）。`NewCommunicator + StringToProxy` 直连 servant；因 TAF/TARS 包 tag 布局差一位，注入自定义 Protocol 按 TAF 布局组包/解包，协议桩手写于 `backend/ETG/`。 |
 | **taf-mysql-mcp** | 已有的本机 Node MCP 服务。**仅作行为参考**，不是插件运行依赖：SQL 首词分类、只读/DML 放行、maxRows 截断、timeoutMs 兜底等语义在 Go 侧重写。 |
-| **只读/写模式** | 连接表单 allow_write 勾选框：不勾仅放行 SELECT 族；勾选放开 INSERT/UPDATE/DELETE/REPLACE；DDL 任何情况拒绝。 |
+| **只读/写模式** | 连接表单 allow_write 勾选框：不勾仅放行 SELECT 族；勾选放开全部语句限制（含 DDL），但任何写操作执行前需在 workbench 弹窗确认。多语句/`/*!` 可执行注释因无法静态判定，任何模式都拒绝。 |
 | **对象树** | workbench 页左侧自建树（宿主侧边栏无法挂插件节点）：表/视图 → 字段/索引，数据来自 information_schema 经 `taf-mysql/meta` RPC；单击表名插入编辑器，双击预览前 100 行。 |
 | **线上 TAF 环境** | 用户持有的线上 TgDataAsync servant 地址所指向的环境；端到端验收用它。插件无"环境"概念，环境=servant 值。 |
 | **元数据查询** | TgDataAsync 只执行 SELECT 族：SHOW/DESC/EXPLAIN 无效；表清单/字段查 `information_schema.tables/columns`（配 `database()`），跨库用全限定表名。 |

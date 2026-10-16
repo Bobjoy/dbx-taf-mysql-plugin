@@ -173,7 +173,10 @@ func Classify(sql string, allowWrite bool) Verdict {
 	if verb == "SELECT" {
 		for idx, t := range tokens {
 			if t.word == "INTO" && idx+1 < len(tokens) && intoFileRe.MatchString(tokens[idx+1].word) {
-				return rejectVerdict("禁止 SELECT ... INTO OUTFILE/DUMPFILE，它会向数据库服务器写文件")
+				if !allowWrite {
+					return rejectVerdict("禁止 SELECT ... INTO OUTFILE/DUMPFILE，它会向数据库服务器写文件")
+				}
+				return Verdict{Decision: DecisionWrite, Verb: "SELECT INTO OUTFILE"}
 			}
 		}
 	}
@@ -186,7 +189,11 @@ func Classify(sql string, allowWrite bool) Verdict {
 		}
 		return Verdict{Decision: DecisionWrite, Verb: verb}
 	}
-	return rejectVerdict(fmt.Sprintf("%s 不在允许范围内：DDL/权限/事务/存储过程类语句一律禁止", verb))
+	if !allowWrite {
+		return rejectVerdict(fmt.Sprintf("%s 不在允许范围内：只读模式仅放行 SELECT 族语句", verb))
+	}
+	// allowWrite 放开全部语句限制（含 DDL/事务/存储过程），由前端执行前弹窗确认
+	return Verdict{Decision: DecisionWrite, Verb: verb}
 }
 
 func resolveVerb(tokens []token) string {

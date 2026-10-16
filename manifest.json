@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "com.bao.taf-mysql",
   "name": "TAF MySQL",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "bao",
   "description": "Query MySQL in TAF environments through the TgDataAsync data-access service.",
   "icon": "assets/plugin.svg",
@@ -47,7 +47,7 @@
         },
         {
           "key": "allow_write",
-          "label": "Allow write (DML)",
+          "label": "Allow write",
           "type": "boolean",
           "default": false,
           "binding": "config"
@@ -75,7 +75,7 @@
           "fields": {
             "display_name": { "label": "连接名称" },
             "servant": { "label": "Servant" },
-            "allow_write": { "label": "允许写操作（INSERT/UPDATE/DELETE/REPLACE，DDL 永远禁止）" }
+            "allow_write": { "label": "允许写操作" }
           }
         },
         "com.bao.taf-mysql.workbench": {

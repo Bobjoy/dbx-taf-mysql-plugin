@@ -61,14 +61,14 @@ func TestMultiStatementRejected(t *testing.T) {
 	}
 }
 
-func TestDDLAlwaysRejected(t *testing.T) {
+func TestDDLRejectedOnlyInReadonly(t *testing.T) {
 	ddl := []string{
 		"DROP TABLE t", "TRUNCATE t_user", "ALTER TABLE t ADD COLUMN x int",
 		"CREATE TABLE t (id int)", "RENAME TABLE a TO b", "GRANT ALL ON db TO u",
 	}
 	for _, sql := range ddl {
 		assertDecision(t, sql, false, DecisionReject, "")
-		assertDecision(t, sql, true, DecisionReject, "")
+		assertDecision(t, sql, true, DecisionWrite, "")
 	}
 	// DELETE 是对照组：开写开关后应放行
 	assertDecision(t, "DELETE FROM t", false, DecisionReject, "")
@@ -100,9 +100,10 @@ func TestWithPrefixResolvesRealVerb(t *testing.T) {
 	assertDecision(t, "WITH x AS (SELECT id FROM t) UPDATE t SET a=1 WHERE id IN (SELECT id FROM x)", true, DecisionWrite, "UPDATE")
 }
 
-func TestSelectIntoFileRejected(t *testing.T) {
+func TestSelectIntoFile(t *testing.T) {
 	assertDecision(t, "SELECT * FROM t INTO OUTFILE '/tmp/x.csv'", false, DecisionReject, "")
 	assertDecision(t, "SELECT * FROM t INTO DUMPFILE '/tmp/x.bin'", false, DecisionReject, "")
+	assertDecision(t, "SELECT * FROM t INTO OUTFILE '/tmp/x.csv'", true, DecisionWrite, "SELECT INTO OUTFILE")
 	assertDecision(t, "SELECT outfile_name FROM t", false, DecisionReadonly, "")
 }
 
@@ -118,6 +119,7 @@ func TestLockTxnProcRejected(t *testing.T) {
 		"SET @a = 1", "USE my_db", `LOAD DATA INFILE "/tmp/x" INTO TABLE t`,
 	} {
 		assertDecision(t, sql, false, DecisionReject, "")
+		assertDecision(t, sql, true, DecisionWrite, "")
 	}
 }
 

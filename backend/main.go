@@ -15,7 +15,7 @@ import (
 
 const (
 	pluginID      = "com.bao.taf-mysql"
-	pluginVersion = "0.1.0"
+	pluginVersion = "0.2.0"
 	maxRows       = 200
 	timeoutMs     = 30000
 )
@@ -80,6 +80,7 @@ type connPayload struct {
 type queryPayload struct {
 	ConnectionID string `json:"connectionId"`
 	SQL          string `json:"sql"`
+	Confirmed    bool   `json:"confirmed"`
 }
 
 func (p *plugin) Handle(
@@ -175,6 +176,10 @@ func (p *plugin) query(params json.RawMessage) (any, *dbxpluginsdk.PluginError) 
 	verdict := Classify(payload.SQL, state.allowWrite)
 	if verdict.Decision == DecisionReject {
 		return nil, dbxpluginsdk.NewError(-32000, "已拒绝："+verdict.Reason)
+	}
+	// 写操作需前端弹窗确认后带 confirmed 重发
+	if verdict.Decision == DecisionWrite && !payload.Confirmed {
+		return map[string]any{"needConfirm": true, "verb": verdict.Verb}, nil
 	}
 	out, err := Execute(state.client, payload.SQL, maxRows, timeoutMs)
 	if err != nil {

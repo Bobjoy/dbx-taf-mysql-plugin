@@ -1,6 +1,7 @@
 # 后端用 tafgo 直连 TgDataAsync，彻底去掉 Node 子进程链
 
 > 更新（2026-09-24）：纯 Go 直连决策不变，但 SDK 已由 tafgo 切换为开源 tarsgo，见 ADR-0005。
+> 更新（2026-09-28）：写权限语义调整——allow_write 勾选后不再"DDL 永拒"，改为放开全部语句限制（含 DDL/事务/存储过程），任何写操作执行前由 workbench 弹窗确认（即原"留作未来选项"的弹窗确认方案已落地，与放开限制组合使用）。多语句与 `/*!` 可执行注释因无法静态判定仍一律拒绝。
 
 背景：原方案（ADR-0001）是 Go 薄壳拉起本机 node + taf-mysql-mcp 子进程。用户拍板改为：连接表单手填 servant，不依赖 taf-mysql-mcp 的运行时与配置文件机制。公司内部存在官方 Go SDK `tafgo`（内网 gitlab，含 tars/JCE 与 servant/ObjectProxy 能力），使纯 Go 直连成为可能。
 

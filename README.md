@@ -44,4 +44,4 @@ npx @dbx-app/plugin-cli dev --path . --port 8731
 `.dbxp`（main 分支每次推送自动出 `nightly` 预发布版，打 `v*` tag 出正式版），
 在 dbx 里安装后新建 "TAF MySQL" 连接，
 Servant（格式 `应用名.服务名.Object名@tcp -h <host> -t 60000 -p <port>`，向你们环境的 TAF 运维要），
-双击连接后在 "TAF MySQL 查询" 工作台执行 SQL。默认只读，勾选 Allow write 放开 DML，DDL 永远拒绝。
+双击连接后在 "TAF MySQL 查询" 工作台执行 SQL。默认只读；勾选 Allow write 放开全部语句限制（含 DDL），执行写操作前会弹窗确认。

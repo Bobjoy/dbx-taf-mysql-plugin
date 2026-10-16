@@ -82,14 +82,43 @@ func TestQueryPolicyEnforced(t *testing.T) {
 	if _, err := handle(t, p, "connection/disconnect", conn); err != nil {
 		t.Fatal(err)
 	}
-	// 开 allowWrite 后 DML 放行到客户端
+	// 开 allowWrite 后：写操作先要求前端确认，confirmed 后才放行到客户端
 	connW := `{"connection":{"id":"rw","external_config":{"servant":"s","allow_write":true}}}`
 	if _, err := handle(t, p, "connection/connect", connW); err != nil {
 		t.Fatal(err)
 	}
-	_, err = handle(t, p, "taf-mysql/query", `{"connectionId":"rw","sql":"DELETE FROM t"}`)
+	res, err := handle(t, p, "taf-mysql/query", `{"connectionId":"rw","sql":"DELETE FROM t"}`)
+	if err != nil {
+		t.Fatalf("unconfirmed write: %+v", err)
+	}
+	if m := res.(map[string]any); m["needConfirm"] != true || m["verb"] != "DELETE" {
+		t.Fatalf("res = %v, want needConfirm DELETE", m)
+	}
+	_, err = handle(t, p, "taf-mysql/query", `{"connectionId":"rw","sql":"DELETE FROM t","confirmed":true}`)
 	if err == nil || !strings.Contains(err.Message, "information_schema") {
 		t.Fatalf("err = %+v, want gateway hint (policy passed)", err)
+	}
+	// DDL 同样走确认而非直接拒绝
+	res, err = handle(t, p, "taf-mysql/query", `{"connectionId":"rw","sql":"DROP TABLE t"}`)
+	if err != nil {
+		t.Fatalf("unconfirmed DDL: %+v", err)
+	}
+	if m := res.(map[string]any); m["needConfirm"] != true || m["verb"] != "DROP" {
+		t.Fatalf("res = %v, want needConfirm DROP", m)
+	}
+	// 只读语句不触发确认，直通执行
+	p.newClient = func(servant string) (TafClient, error) {
+		return &fakeClient{result: `[{"ok":1}]`}, nil
+	}
+	if _, err := handle(t, p, "connection/connect", `{"connection":{"id":"rw2","external_config":{"servant":"s","allow_write":true}}}`); err != nil {
+		t.Fatal(err)
+	}
+	res, err = handle(t, p, "taf-mysql/query", `{"connectionId":"rw2","sql":"select 1"}`)
+	if err != nil {
+		t.Fatalf("readonly query: %+v", err)
+	}
+	if _, isMap := res.(map[string]any); isMap {
+		t.Fatalf("readonly query should not need confirm, got %v", res)
 	}
 }
 

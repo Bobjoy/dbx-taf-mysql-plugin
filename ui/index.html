@@ -52,6 +52,14 @@
       th { position: sticky; top: 0; background: color-mix(in srgb, CanvasText 7%, Canvas); }
       td.null { color: color-mix(in srgb, CanvasText 45%, Canvas); font-style: italic; }
       .hint { margin-top: 10px; font-size: 12px; opacity: .55; flex: 0 0 auto; }
+      #confirm-mask { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .35); align-items: center; justify-content: center; z-index: 50; }
+      #confirm-box { background: Canvas; color: CanvasText; border: 1px solid color-mix(in srgb, CanvasText 14%, transparent); border-radius: 12px; padding: 18px 20px; width: min(520px, 90vw); box-shadow: 0 8px 30px rgba(0, 0, 0, .25); }
+      #confirm-title { font-weight: 700; font-size: 14px; color: #e5484d; }
+      #confirm-text { margin-top: 8px; font-size: 13px; }
+      #confirm-sql { margin-top: 10px; padding: 8px 10px; background: color-mix(in srgb, CanvasText 6%, transparent); border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow: auto; }
+      #confirm-btns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+      #confirm-btns button { border-radius: 8px; padding: 7px 16px; font: inherit; cursor: pointer; border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); background: none; color: inherit; }
+      #confirm-yes { background: #e5484d; border-color: #e5484d !important; color: white; font-weight: 650; }
     </style>
   </head>
   <body>
@@ -76,6 +84,17 @@
       </div>
     </div>
     <p class="hint">左键单击表/视图名插入编辑器，双击预览前 100 行；跨库查询用全限定表名 <code>&lt;库&gt;.&lt;表&gt;</code>。</p>
+    <div id="confirm-mask">
+      <div id="confirm-box">
+        <div id="confirm-title">写操作确认</div>
+        <div id="confirm-text"></div>
+        <pre id="confirm-sql"></pre>
+        <div id="confirm-btns">
+          <button id="confirm-no" type="button">取消</button>
+          <button id="confirm-yes" type="button">确认执行</button>
+        </div>
+      </div>
+    </div>
     <script src="vendor/editor.js"></script>
     <script>
       const $ = (s) => document.querySelector(s);
@@ -133,13 +152,35 @@
         statusEl.textContent = parts.join(" ｜ ");
       }
 
+      function confirmWrite(verb, sql) {
+        return new Promise((resolve) => {
+          $("#confirm-text").textContent = `即将执行 ${verb} 写操作，可能修改线上数据，请确认 SQL 无误。`;
+          $("#confirm-sql").textContent = sql.length > 500 ? sql.slice(0, 500) + "…" : sql;
+          const mask = $("#confirm-mask");
+          mask.style.display = "flex";
+          const close = (val) => () => { mask.style.display = "none"; resolve(val); };
+          $("#confirm-yes").onclick = close(true);
+          $("#confirm-no").onclick = close(false);
+        });
+      }
+
       async function run() {
         const sql = editorApi.value.trim();
         if (!sql) return;
         runBtn.disabled = true;
         statusEl.textContent = "执行中…";
         try {
-          render(await window.dbxPlugin.invoke("taf-mysql/query", { connectionId: connectionId(), sql }));
+          const invoke = (confirmed) => window.dbxPlugin.invoke("taf-mysql/query", { connectionId: connectionId(), sql, confirmed });
+          let out = await invoke(false);
+          if (out && out.needConfirm) {
+            if (!(await confirmWrite(out.verb, sql))) {
+              statusEl.textContent = "已取消";
+              return;
+            }
+            statusEl.textContent = "执行中…";
+            out = await invoke(true);
+          }
+          render(out);
         } catch (error) {
           statusEl.textContent = "";
           showError(error.message);
